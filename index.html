@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Screen Space Estimator 3.0</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #000000;
+                color: #FFFFFF;
+                margin: 0;
+                padding-bottom: 50px;
+            }
+            .header {
+                background-color: #B8860B; 
+                padding: 10px;
+                text-align: center;
+            }
+            .logo {
+                font-size: 32px;
+                color: #000000; 
+                font-weight: bold;
+            }
+            .container {
+                padding: 20px;
+                max-width: 400px;
+                margin: auto;
+            }
+            select, input[type="number"] {
+                width: 100%;
+                padding: 8px;
+                margin: 8px 0 16px 0;
+                background-color: #1A1A1A; 
+                border: 1px solid #B8860B; 
+                color: #FFFFFF; 
+                box-sizing: border-box;
+                font-size: 16px;
+            }
+            button {
+                background-color: #B8860B; 
+                color: #000000; 
+                padding: 10px;
+                border: none;
+                width: 100%;
+                font-weight: bold;
+                cursor: pointer;
+                margin-bottom: 10px;
+                font-size: 16px;
+            }
+            button:hover {
+                background-color: #C59B27; 
+            }
+            
+            /* Hidden until calculation button is pressed */
+            #resultsArea {
+                display: none; 
+            }
+            
+            .stats-container {
+                margin-top: 10px;
+                text-align: center;
+                line-height: 1.5;
+            }
+            #canvasWrapper {
+                width: 90%;
+                max-width: 800px;
+                margin: 30px auto;
+                text-align: center;
+            }
+            canvas {
+                background-color: #ffffff;
+                width: 100%;
+                height: auto;
+                border: 2px solid #B8860B; 
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="header">
+            <div class="logo">
+                <img src="./PBSA_productionHouse.jpg" width="160" height="130" alt="PBS Logo">
+                <div id="logText">Screen Space Estimator</div>
+            </div>
+        </div>
+        <div class="container">
+            <label>Measurement Unit:</label>
+            <select id="unitSelect" onchange="handleUnitChange()">
+                <option value="ft" selected>Feet (ft)</option>
+                <option value="m">Meters (m)</option>
+            </select>
+
+            <label id="labelLength">Space Length / Height (ft):</label>
+            <input type="number" id="spaceLength" value="10" min="0">
+                
+            <label id="labelWidth">Space Width (ft):</label>
+            <input type="number" id="spaceWidth" value="20" min="0">
+                
+            <button onclick="calculateScreens()">Calculate</button>
+            <button onclick="window.print()">Print / Save as PDF</button>
+        </div>
+        
+        <div id="resultsArea">
+            <div class="container" style="padding-top: 0;">
+                <div class="stats-container">
+                    <div id="screensPermissible"></div>
+                    <div id="maxRows"></div>
+                    <div id="maxCols"></div>
+                    <div id="leftover"></div>
+                </div>
+            </div>
+            
+            <div id="canvasWrapper">
+                <canvas id="layoutCanvas"></canvas>
+            </div>
+        </div>
+        
+        <script>
+            // Global tracker to handle on-the-fly mathematical conversions
+            let currentUnit = 'ft'; 
+
+            // Converts existing input values and updates UI labels when unit dropdown changes
+            function handleUnitChange() {
+                const unitSelect = document.getElementById('unitSelect');
+                const newUnit = unitSelect.value;
+                
+                const lengthInput = document.getElementById('spaceLength');
+                const widthInput = document.getElementById('spaceWidth');
+                
+                let lengthVal = parseFloat(lengthInput.value);
+                let widthVal = parseFloat(widthInput.value);
+
+                // Check if conversion is required
+                if (newUnit !== currentUnit && !isNaN(lengthVal) && !isNaN(widthVal)) {
+                    if (newUnit === 'm') {
+                        // Feet to Meters conversion
+                        lengthInput.value = (lengthVal * 0.3048).toFixed(2);
+                        widthInput.value = (widthVal * 0.3048).toFixed(2);
+                    } else {
+                        // Meters to Feet conversion
+                        lengthInput.value = (lengthVal / 0.3048).toFixed(2);
+                        widthInput.value = (widthVal / 0.3048).toFixed(2);
+                    }
+                    currentUnit = newUnit; // Update state tracking
+                }
+
+                // Dynamic label updates
+                const unitText = newUnit === 'ft' ? 'ft' : 'm';
+                document.getElementById('labelLength').innerText = `Space Length / Height (${unitText}):`;
+                document.getElementById('labelWidth').innerText = `Space Width (${unitText}):`;
+                
+                // Hide old calculations so user is forced to refresh via the "Calculate" button
+                document.getElementById('resultsArea').style.display = 'none';
+            }
+
+            // Performs calculations and shows results
+            function calculateScreens() {
+                const spaceLength = parseFloat(document.getElementById('spaceLength').value);
+                const spaceWidth = parseFloat(document.getElementById('spaceWidth').value);
+                
+                if (!spaceLength || !spaceWidth || spaceLength <= 0 || spaceWidth <= 0) return;
+
+                const unit = document.getElementById('unitSelect').value;
+                const sqUnitText = unit === 'ft' ? 'sq ft' : 'sq m';
+
+                // --- DYNAMIC SCREEN DIMENSIONS ---
+                // 3.28 ft is roughly 1m, 1.64 ft is roughly 0.5m
+                const screenWidth = unit === 'ft' ? 3.28 : 1.0;
+                const screenHeight = unit === 'ft' ? 1.64 : 0.5;
+
+                const cols = Math.floor(spaceWidth / screenWidth);
+                const rows = Math.floor(spaceLength / screenHeight);
+                const screensFit = rows * cols;
+                
+                const leftoverWidth = spaceWidth - (cols * screenWidth);
+                const leftoverLength = spaceLength - (rows * screenHeight);
+                const leftOverArea = (spaceLength * spaceWidth) - (screensFit * (screenWidth * screenHeight));
+                
+                // --- UPDATE TEXT STATS ---
+                document.getElementById('screensPermissible').innerText = `Screens that will fit: ${screensFit.toLocaleString()}`;
+                document.getElementById('maxRows').innerText = `Screens per Row (Columns): ${cols.toLocaleString()}`;
+                document.getElementById('maxCols').innerText = `Screens per Column (Rows): ${rows.toLocaleString()}`;
+                
+                document.getElementById('leftover').innerText = 
+                    leftOverArea > 0.01 
+                    ? `Leftover Space: ${leftOverArea.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${sqUnitText}. (Brownish-gold dashed borders)`
+                    : `Leftover Space: None`;
+
+                // --- CANVAS RENDER LOGIC ---
+                const canvas = document.getElementById('layoutCanvas');
+                const ctx = canvas.getContext('2d');
+
+                const internalRenderWidth = 1200; 
+                canvas.width = internalRenderWidth;
+                
+                const scale = internalRenderWidth / spaceWidth;
+                canvas.height = spaceLength * scale;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // 1. Draw Main Screen Block
+                const screenBlockWidth = cols * screenWidth * scale;
+                const screenBlockHeight = rows * screenHeight * scale;
+                ctx.fillStyle = '#1A1A1A'; 
+                ctx.fillRect(0, 0, screenBlockWidth, screenBlockHeight);
+
+                // 2. Draw Leftover Block Backgrounds
+                ctx.fillStyle = '#000000'; 
+                if (leftoverWidth > 0) {
+                    ctx.fillRect(screenBlockWidth, 0, leftoverWidth * scale, canvas.height);
+                }
+                if (leftoverLength > 0) {
+                    ctx.fillRect(0, screenBlockHeight, canvas.width, leftoverLength * scale);
+                }
+
+                // 3. Dynamic Visual Clustering
+                let visualStep = 1;
+                const minPixelSize = 8; 
+                while ((Math.min(screenWidth, screenHeight) * visualStep * scale) < minPixelSize) {
+                    visualStep++;
+                }
+
+                // 4. Draw Grid Lines based on Visual Step
+                ctx.beginPath();
+                ctx.strokeStyle = '#FFFFFF'; 
+                ctx.lineWidth = 1;
+
+                // Vertical lines
+                for (let c = 0; c <= cols; c += visualStep) {
+                    const x = c * screenWidth * scale;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, screenBlockHeight);
+                }
+                if (cols % visualStep !== 0) {
+                    const x = cols * screenWidth * scale;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, screenBlockHeight);
+                }
+
+                // Horizontal lines
+                for (let r = 0; r <= rows; r += visualStep) {
+                    const y = r * screenHeight * scale;
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(screenBlockWidth, y);
+                }
+                if (rows % visualStep !== 0) {
+                    const y = rows * screenHeight * scale;
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(screenBlockWidth, y);
+                }
+                ctx.stroke();
+
+                // 5. Draw Leftover Dashed Borders
+                if (leftOverArea > 0.01) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = '#B8860B'; 
+                    ctx.setLineDash([8, 8]); 
+                    ctx.lineWidth = 3;
+                    
+                    if (leftoverWidth > 0) {
+                        ctx.rect(screenBlockWidth, 0, leftoverWidth * scale, spaceLength * scale);
+                    }
+                    if (leftoverLength > 0) {
+                        ctx.rect(0, screenBlockHeight, spaceWidth * scale, leftoverLength * scale);
+                    }
+                    ctx.stroke();
+                    ctx.setLineDash([]); 
+                }
+
+                // --- REVEAL COMPLETED INTERFACE ---
+                document.getElementById('resultsArea').style.display = 'block';
+            }
+            
+            // Set labels correctly right away when the document loads
+            window.onload = handleUnitChange;
+        </script>
+    </body>
+</html>
